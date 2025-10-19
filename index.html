@@ -207,11 +207,32 @@
       'Oi quero te conhecer'
     ];
     
-    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
-    const randomNumero = window.NUMEROS[Math.floor(Math.random() * window.NUMEROS.length)];
-    console.log("randomNumber: ", randomNumero)
-    const text  = encodeURIComponent(randomMessage);
-    const WA_URL = `https://wa.me/${randomNumero}?text=${text}`;
+    function deterministicPick(n) {
+      const fp = (navigator.userAgent || '') + '|' +
+        (Intl.DateTimeFormat().resolvedOptions().timeZone || '') + '|' +
+        ((screen.width || '') + 'x' + (screen.height || '')) + '|' +
+        (navigator.language || '');
+      let h = 0;
+      for (let i = 0; i < fp.length; i++) {
+        h = (h * 31 + fp.charCodeAt(i)) >>> 0;
+      }
+      return h % n;
+    }
+
+    async function pickIndex(n) {
+      try {
+        const response = await fetch(`/api/next-number?n=${n}`, { cache: 'no-store' });
+        if (response.ok) {
+          const data = await response.json();
+          if (Number.isInteger(data.index) && data.index >= 0 && data.index < n) {
+            return data.index;
+          }
+        }
+      } catch (_) {}
+      return deterministicPick(n);
+    }
+
+    let WA_URL = "";
 
     // -------- Helpers de notificação HTML --------
     function buildNotif(text){
@@ -275,7 +296,20 @@
       setTimeout(()=>{ window.location.href = WA_URL; }, redirectAt);
     }
 
-    window.addEventListener('load', runIntroSequence);
+    (async () => {
+      const total = window.NUMEROS.length;
+      const idx = await pickIndex(total);
+      const numero = window.NUMEROS[idx];
+      const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+      const text  = encodeURIComponent(randomMessage);
+      WA_URL = `https://wa.me/${numero}?text=${text}`;
+
+      if (document.readyState === 'complete') {
+        runIntroSequence();
+      } else {
+        window.addEventListener('load', runIntroSequence, { once: true });
+      }
+    })();
   </script>
 
 
