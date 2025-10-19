@@ -13,6 +13,9 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
+
 const allowedImageTypes = ["image/jpeg", "image/png"];
 
 const upload = multer({
@@ -44,9 +47,26 @@ async function ensureState() {
 
 ensureState().catch(console.error);
 
-app.use(express.static(__dirname));
+const ONE_YEAR = 31536000;
+
+app.use(
+  express.static(path.join(__dirname, "public"), {
+    etag: true,
+    setHeaders: (res, filePath) => {
+      if (/\.(html?)$/i.test(filePath)) {
+        res.setHeader("Cache-Control", "no-cache");
+      } else {
+        res.setHeader(
+          "Cache-Control",
+          `public, max-age=${ONE_YEAR}, immutable`
+        );
+      }
+    },
+  })
+);
 
 app.get("/health", (_req, res) => res.send("ok"));
+app.get("/healthz", (_req, res) => res.type("text").send("ok"));
 
 app.get("/api/next-number", async (req, res) => {
   try {
@@ -81,7 +101,8 @@ app.post("/api/admin/media", upload.single("media"), (req, res) => {
 
 app.get("*", (req, res, next) => {
   if (req.path.startsWith("/api/")) return next();
-  res.sendFile(path.join(__dirname, "index.html"));
+  res.set("Cache-Control", "no-cache");
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 app.use((err, req, res, next) => {
