@@ -161,7 +161,7 @@
   <!-- Overlay de proximidade -->
   <div class="intro-overlay" id="introOverlay" aria-live="polite" aria-hidden="true">
     <div class="intro-bubble">
-      <span>Você e Hadrielle estão muito perto um do outro!</span>
+      <span></span>
     </div>
   </div>
 
@@ -181,8 +181,24 @@
       }
     }
 
+    // [NEW] Atualiza o texto do overlay com base na cidade.
+    function updateIntroOverlayCity(city) {
+      // Tenta achar o elemento do balão. Ajusta os seletores conforme seu HTML.
+      const bubble = document.querySelector('#introOverlay .intro-bubble span, #introOverlay .intro-bubble, .intro-bubble span, .intro-bubble');
+      if (!bubble) return;
+
+      const hasCity = city && String(city).trim().length > 0;
+      const text = hasCity
+        ? `Hadrielle está bem perto de você agora, ela está em ${city}!!`
+        : `Hadrielle está bem perto de você agora!!`; // Fallback
+
+      // Mantém o estilo via CSS; evita HTML inline.
+      bubble.textContent = text;
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       updateLocationUI(null);
+      updateIntroOverlayCity(null);
     });
 
     // -------- Desbloqueio de áudio --------
@@ -356,6 +372,7 @@
 
         const city = (window.userLocation && window.userLocation.city) || data?.city || resolvedCity || null;
         updateLocationUI(city);
+        updateIntroOverlayCity(city);
       }
 
       // dispara ao carregar
