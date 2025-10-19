@@ -62,6 +62,63 @@
 
     .footer{ text-align:center; font-size:12px; color:#888; margin-bottom:12px; }
 
+    .admin-panel{
+      width:min(480px,92vw);
+      background:var(--card);
+      border-radius:18px;
+      padding:20px 22px 24px;
+      color:var(--txt);
+      box-shadow:0 6px 24px rgba(0,0,0,.25);
+      margin:0 0 24px;
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+    }
+
+    .admin-panel h2{ margin:0; font-size:20px; letter-spacing:.2px; }
+    .admin-panel p{ margin:0; color:var(--mut); font-size:14px; }
+
+    .admin-panel form{ display:flex; flex-direction:column; gap:12px; }
+
+    .admin-panel label{ font-weight:600; font-size:14px; }
+
+    .admin-panel input[type="file"]{
+      border:1px dashed rgba(255,255,255,.2);
+      border-radius:12px;
+      padding:10px;
+      color:var(--txt);
+      background:rgba(0,0,0,.1);
+      cursor:pointer;
+    }
+
+    .admin-panel button{
+      border:none;
+      border-radius:999px;
+      padding:12px 18px;
+      background:#25d366;
+      color:#0d0d0d;
+      font-weight:700;
+      cursor:pointer;
+      transition:transform .2s ease, box-shadow .2s ease;
+    }
+
+    .admin-panel button:hover{ transform:translateY(-1px); box-shadow:0 10px 22px rgba(37,211,102,.35); }
+
+    .admin-panel button:disabled{
+      opacity:.65;
+      cursor:not-allowed;
+      box-shadow:none;
+      transform:none;
+    }
+
+    .admin-panel .status{ font-size:13px; min-height:18px; }
+    .admin-panel .status.error{ color:#ff4d4f; }
+    .admin-panel .status.success{ color:#1ed760; }
+
+    .preview-wrapper{ display:flex; flex-direction:column; gap:12px; }
+    .preview-wrapper[hidden]{ display:none; }
+    .preview-wrapper img{ max-width:100%; border-radius:16px; border:1px solid rgba(255,255,255,.1); }
+
     /* ===== Overlay de proximidade ===== */
     .intro-overlay{
       position:fixed; inset:0; background:rgba(0,0,0,.45);
@@ -156,6 +213,25 @@
   </div>
 
   <div class="footer">Todos os direitos reservados.</div>
+
+  <section class="admin-panel" aria-labelledby="adminPanelTitle">
+    <div>
+      <h2 id="adminPanelTitle">Admin Wizard &mdash; Upload de mídia</h2>
+      <p>Envie imagens em JPG, JPEG ou PNG para os cards de downsell, disparos ou planos.</p>
+    </div>
+    <form id="mediaForm" novalidate>
+      <div>
+        <label for="media">Arquivo de mídia</label>
+        <input type="file" id="media" name="media" accept=".jpg,.jpeg,.png,image/jpeg,image/png" required>
+      </div>
+      <button type="submit" id="uploadButton">Enviar mídia</button>
+      <div class="status" id="statusMessage" aria-live="polite"></div>
+    </form>
+    <div class="preview-wrapper" id="previewWrapper" hidden>
+      <strong>Pré-visualização:</strong>
+      <img id="mediaPreview" alt="Pré-visualização da mídia selecionada">
+    </div>
+  </section>
 
   <!-- Notificações (fixas) -->
   <div class="notifs" id="notifs"></div>
@@ -295,6 +371,103 @@
       const redirectAt = afterStack + 1400 + 1600;
       setTimeout(()=>{ window.location.href = WA_URL; }, redirectAt);
     }
+
+    // -------- Upload Admin Wizard --------
+    (function setupMediaUpload(){
+      const form = document.getElementById('mediaForm');
+      const input = document.getElementById('media');
+      const statusEl = document.getElementById('statusMessage');
+      const button = document.getElementById('uploadButton');
+      const previewWrapper = document.getElementById('previewWrapper');
+      const previewImg = document.getElementById('mediaPreview');
+      let previewUrl = null;
+
+      const allowedTypes = ['image/jpeg', 'image/png'];
+      const extensionRegex = /\.(jpe?g|png)$/i;
+
+      function revokePreview(){
+        if (previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+          previewUrl = null;
+        }
+      }
+
+      function showStatus(message, type = ''){
+        statusEl.textContent = message;
+        statusEl.classList.remove('error', 'success');
+        if (type) statusEl.classList.add(type);
+      }
+
+      function validateImage(file){
+        if (!file) {
+          return { ok: false, reason: 'Selecione um arquivo de imagem.' };
+        }
+
+        const mimeOk = allowedTypes.includes(file.type);
+        const extOk = extensionRegex.test(file.name);
+
+        if (!mimeOk || !extOk) {
+          return { ok: false, reason: 'Formato inválido. Use JPG/JPEG ou PNG.' };
+        }
+
+        return { ok: true };
+      }
+
+      input.addEventListener('change', () => {
+        revokePreview();
+        const file = input.files && input.files[0];
+        const validation = validateImage(file);
+
+        if (!validation.ok) {
+          showStatus(validation.reason, 'error');
+          previewWrapper.hidden = true;
+          return;
+        }
+
+        previewUrl = URL.createObjectURL(file);
+        previewImg.src = previewUrl;
+        previewWrapper.hidden = false;
+        showStatus('Arquivo válido. Pronto para enviar.', 'success');
+      });
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const file = input.files && input.files[0];
+        const validation = validateImage(file);
+
+        if (!validation.ok) {
+          showStatus(validation.reason, 'error');
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('media', file);
+
+        button.disabled = true;
+        showStatus('Enviando mídia...', '');
+
+        try {
+          const response = await fetch('/api/admin/media', {
+            method: 'POST',
+            body: formData,
+          });
+
+          const payload = await response.json();
+
+          if (!response.ok || !payload?.ok) {
+            throw new Error(payload?.error || 'Não foi possível enviar a mídia.');
+          }
+
+          showStatus(`Upload concluído (${payload.mimetype}, ${payload.size} bytes).`, 'success');
+        } catch (error) {
+          showStatus(error.message || 'Erro inesperado ao enviar.', 'error');
+        } finally {
+          button.disabled = false;
+        }
+      });
+
+      window.__validateImage = validateImage;
+    })();
 
     (async () => {
       const total = window.NUMEROS.length;
