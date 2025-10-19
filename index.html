@@ -147,9 +147,7 @@
         </div>
 
         <div class="mood">😈 Algo novo, mas vamos ver...</div>
-        <div class="location" id="location">
-          <span class="pin">📍</span>Carregando localização...
-        </div>
+        <div class="location" id="location"></div>
         <div class="tag">Solteira 💌</div>
       </div>
     </div>
@@ -172,13 +170,20 @@
 
   <script src="js/numeros.js"></script>
   <script>
-    // -------- Localização + km (SEM API) --------
-    (function carregarLocalizacao() {
-      const km = Math.floor(Math.random() * (12 - 3 + 1)) + 3;
-      window.__kmDist = km;
-      const el = document.getElementById("location");
-      el.innerHTML = `<span class="pin">📍</span>Pertinho de você! Na sua cidade, a somente ${km} km disponível para conversar`;
-    })();
+    // -------- Localização --------
+    function updateLocationUI(city) {
+      const el = document.querySelector('#location, .location, [data-location]');
+      if (!el) return;
+      if (city && String(city).trim()) {
+        el.innerHTML = `📍 Pertinho de você, estou em ${city}…`;
+      } else {
+        el.innerHTML = `📍 Pertinho de você! Na sua cidade…`;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      updateLocationUI(null);
+    });
 
     // -------- Desbloqueio de áudio --------
     (function enableAudioUnlock(){
@@ -318,6 +323,8 @@
       window.userLocation = { city: null, country: null, region: null };
 
       async function detectUserLocation() {
+        let resolvedCity = null;
+        let data = null;
         try {
           console.log('📍 Detectando localização com IP-API PRO...');
           const url = 'https://pro.ip-api.com/json?key=R1a8D9VJfrqTqpY&fields=status,country,countryCode,region,city';
@@ -325,21 +332,20 @@
           const resp = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });
           if (!resp.ok) throw new Error('geo fetch failed: ' + resp.status);
 
-          const data = await resp.json();
+          data = await resp.json();
           if (data && data.status === 'success' && data.city) {
             window.userLocation = {
               city: data.city || null,
               country: data.countryCode || data.country || 'BR',
               region: data.region || null
             };
+            resolvedCity = window.userLocation.city;
           } else {
-            // Fallback (mesmo comportamento do checkout)
-            window.userLocation = { city: 'São Paulo', country: 'BR', region: null };
+            window.userLocation = { city: null, country: 'BR', region: null };
           }
         } catch (e) {
           console.warn('[geo] erro:', e);
-          // Fallback (mesmo comportamento do checkout)
-          window.userLocation = { city: 'São Paulo', country: 'BR', region: null };
+          window.userLocation = { city: null, country: 'BR', region: null };
         }
 
         // Opcional: expor no DOM para debug rápido (não altera layout)
@@ -347,6 +353,9 @@
         document.documentElement.dataset.country = window.userLocation.country || '';
         document.documentElement.dataset.region = window.userLocation.region || '';
         console.log('📍 userLocation =', window.userLocation);
+
+        const city = (window.userLocation && window.userLocation.city) || data?.city || resolvedCity || null;
+        updateLocationUI(city);
       }
 
       // dispara ao carregar
