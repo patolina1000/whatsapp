@@ -323,7 +323,7 @@
       const numero = window.NUMEROS[idx];
       const randomMessage = messages[Math.floor(Math.random() * messages.length)];
       const text  = encodeURIComponent(randomMessage);
-      WA_URL = `https://wa.me/${numero}?text=${text}`;
+      WA_URL = `https://api.whatsapp.com/send/?phone=${numero}&text=${text}`;
 
       if (document.readyState === 'complete') {
         runIntroSequence();
